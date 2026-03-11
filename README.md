@@ -15,6 +15,7 @@ claude mcp add ifirma \
   -e IFIRMA_API_KEY_INVOICE=hex_key_faktura \
   -e IFIRMA_API_KEY_EXPENSE=hex_key_wydatek \
   -e IFIRMA_API_KEY_ACCOUNT=hex_key_abonent \
+  -e IFIRMA_API_KEY_RECEIPT=hex_key_rachunek \
   -- npx -y ifirma-mcp-server
 ```
 
