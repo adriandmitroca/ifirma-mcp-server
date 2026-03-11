@@ -10,7 +10,9 @@ export function registerPaymentTools(server: McpServer, client: IfirmaClient) {
 		{
 			invoiceNumber: z
 				.string()
-				.describe("Full invoice number (e.g. 'A2/2/2026')"),
+				.describe(
+					"Full invoice number (e.g. 'A2/2/2026') — slashes are auto-replaced with underscores",
+				),
 			invoiceType: z
 				.enum([
 					"prz_faktura_kraj",
@@ -22,22 +24,40 @@ export function registerPaymentTools(server: McpServer, client: IfirmaClient) {
 				])
 				.default("prz_faktura_kraj")
 				.describe("Invoice type"),
-			amount: z.number().positive().describe("Payment amount in PLN"),
-			paymentDate: z.string().describe("Payment date (YYYY-MM-DD)"),
-			description: z.string().optional().describe("Payment description"),
+			amount: z.number().min(0).describe("Payment amount"),
+			paymentDate: z
+				.string()
+				.optional()
+				.describe(
+					"Payment date (YYYY-MM-DD) — required for foreign currency and special cash invoices",
+				),
+			amountPln: z
+				.number()
+				.optional()
+				.describe(
+					"Amount in PLN — required when paying a foreign currency invoice in PLN",
+				),
+			exchangeRate: z
+				.number()
+				.optional()
+				.describe(
+					"Exchange rate — required when paying in the invoice's foreign currency",
+				),
 		},
 		async (input) => {
 			try {
 				const numer = input.invoiceNumber.replace(/\//g, "_");
+				const body: Record<string, unknown> = {
+					Kwota: input.amount,
+				};
+				if (input.paymentDate) body.Data = input.paymentDate;
+				if (input.amountPln !== undefined) body.KwotaPln = input.amountPln;
+				if (input.exchangeRate !== undefined) body.Kurs = input.exchangeRate;
 				const result = await client.request({
 					method: "POST",
 					path: `faktury/wplaty/${input.invoiceType}/${numer}.json`,
 					keyName: "faktura",
-					body: {
-						Kwota: input.amount,
-						DataWplaty: input.paymentDate,
-						Opis: input.description || "",
-					},
+					body,
 				});
 
 				return {

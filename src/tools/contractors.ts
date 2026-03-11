@@ -40,15 +40,19 @@ export function registerContractorTools(
 
 	server.tool(
 		"get_contractor",
-		"Get full contractor details by ID. Returns complete contractor information including address, NIP, email, and phone.",
+		"Get full contractor details by identifier. Returns complete contractor information including address, NIP, email, and phone.",
 		{
-			id: z.number().positive().describe("Contractor ID"),
+			identifier: z
+				.string()
+				.describe(
+					"Contractor identifier (e.g. 'RADICAL AGENCY C') — from search_contractors Identyfikator field",
+				),
 		},
 		async (input) => {
 			try {
 				const result = await client.request({
 					method: "GET",
-					path: `kontrahenci/id/${input.id}.json`,
+					path: `kontrahenci/id/${encodeURIComponent(input.identifier)}.json`,
 					keyName: "faktura",
 				});
 
@@ -113,9 +117,11 @@ export function registerContractorTools(
 
 	server.tool(
 		"update_contractor",
-		"Update an existing contractor in iFirma. Only provided fields will be updated.",
+		"Update an existing contractor in iFirma. WARNING: The API requires ALL contractor data — fields not sent will be DELETED. Always fetch the contractor first with get_contractor, then send the complete data with your changes.",
 		{
-			id: z.number().positive().describe("Contractor ID"),
+			identifier: z
+				.string()
+				.describe("Contractor identifier (from search_contractors)"),
 			name: z.string().optional().describe("Company name"),
 			nip: z.string().optional().describe("NIP number"),
 			street: z.string().optional().describe("Street address"),
@@ -139,7 +145,7 @@ export function registerContractorTools(
 
 				const result = await client.request({
 					method: "PUT",
-					path: `kontrahenci/${input.id}.json`,
+					path: `kontrahenci/${encodeURIComponent(input.identifier)}.json`,
 					keyName: "faktura",
 					body,
 				});

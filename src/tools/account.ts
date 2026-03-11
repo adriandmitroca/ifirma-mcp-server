@@ -3,6 +3,48 @@ import { z } from "zod";
 import type { IfirmaClient } from "../client/api.js";
 import { formatToolError } from "../utils/errors.js";
 
+export function registerVatRateTools(server: McpServer, client: IfirmaClient) {
+	server.tool(
+		"get_eu_vat_rates",
+		"Get current VAT rates for an EU country. Returns standard and reduced rates. Use ISO 3166-1 alpha-2 country codes (exception: Greece = EL).",
+		{
+			countryCode: z
+				.string()
+				.length(2)
+				.describe(
+					"ISO 3166-1 alpha-2 country code (e.g. DE, FR, CZ). Greece uses EL.",
+				),
+			date: z
+				.string()
+				.optional()
+				.describe("Optional date (YYYY-MM-DD) for historical rates"),
+		},
+		async (input) => {
+			try {
+				const params: Record<string, string> = {};
+				if (input.date) params.data = input.date;
+				const result = await client.request({
+					method: "GET",
+					path: `slownik/stawki_vat/${encodeURIComponent(input.countryCode)}.json`,
+					keyName: "faktura",
+					params: Object.keys(params).length > 0 ? params : undefined,
+				});
+
+				return {
+					content: [
+						{ type: "text" as const, text: JSON.stringify(result, null, 2) },
+					],
+				};
+			} catch (error) {
+				return {
+					content: [{ type: "text" as const, text: formatToolError(error) }],
+					isError: true,
+				};
+			}
+		},
+	);
+}
+
 export function registerAccountTools(server: McpServer, client: IfirmaClient) {
 	server.tool(
 		"get_accounting_month",
@@ -71,33 +113,7 @@ export function registerAccountTools(server: McpServer, client: IfirmaClient) {
 			try {
 				const result = await client.request({
 					method: "GET",
-					path: "limit.json",
-					keyName: "abonent",
-				});
-
-				return {
-					content: [
-						{ type: "text" as const, text: JSON.stringify(result, null, 2) },
-					],
-				};
-			} catch (error) {
-				return {
-					content: [{ type: "text" as const, text: formatToolError(error) }],
-					isError: true,
-				};
-			}
-		},
-	);
-
-	server.tool(
-		"get_eu_vat_rates",
-		"Get current VAT rates for all EU countries. Returns standard and reduced rates per country.",
-		{},
-		async () => {
-			try {
-				const result = await client.request({
-					method: "GET",
-					path: "stawki-vat-ue.json",
+					path: "abonent/limit.json",
 					keyName: "abonent",
 				});
 

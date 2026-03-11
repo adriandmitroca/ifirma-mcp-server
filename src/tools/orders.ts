@@ -6,81 +6,80 @@ import { formatToolError } from "../utils/errors.js";
 export function registerOrderTools(server: McpServer, client: IfirmaClient) {
 	server.tool(
 		"create_order",
-		"Create a new order (zamówienie) in iFirma. Requires at least one line item. Contractor can be specified by NIP or inline details.",
+		"Create a new order in iFirma's e-commerce module. Uses the hub API endpoint. Requires order ID, status, currency, and at least one item.",
 		{
-			contractorNip: z
+			orderId: z.string().describe("Unique order identifier (max 40 chars)"),
+			status: z.string().describe("Order status (max 100 chars)"),
+			created: z
 				.string()
-				.optional()
-				.describe(
-					"Contractor NIP — use this to link to an existing contractor",
-				),
-			contractor: z
-				.object({
-					name: z.string().describe("Contractor name"),
-					nip: z.string().optional().describe("NIP number"),
-					street: z.string().optional().describe("Street address"),
-					postalCode: z.string().describe("Postal code"),
-					city: z.string().describe("City"),
-				})
-				.optional()
-				.describe(
-					"Inline contractor details — used when contractorNip is not provided",
-				),
+				.describe("Creation timestamp (yyyy-MM-ddTHH:mm:ss.SSS)"),
+			currency: z.string().describe("ISO 4217 currency code (e.g. PLN, EUR)"),
+			shippingTotal: z.number().describe("Shipping cost"),
+			productsTotalNet: z
+				.number()
+				.describe("Products total net (before shipping)"),
+			paymentMethod: z.string().optional().describe("Payment method name"),
 			items: z
 				.array(
 					z.object({
-						name: z.string().describe("Product/service name"),
+						name: z.string().describe("Product name"),
 						quantity: z.number().describe("Quantity"),
-						unitNetPrice: z.number().describe("Unit net price"),
-						vatRate: z
-							.number()
-							.describe(
-								"VAT rate as percentage (e.g. 23) or -1 for exempt (zw)",
-							),
-						unit: z.string().default("szt.").describe("Unit of measure"),
+						price: z.number().describe("Unit price"),
+						tax: z.number().optional().describe("Tax amount"),
+						taxPercent: z.number().optional().describe("Tax percentage"),
+						sku: z.string().optional().describe("SKU code"),
 					}),
 				)
 				.min(1)
 				.describe("Order line items"),
-			notes: z.string().optional().describe("Additional notes"),
-			deliveryDate: z
-				.string()
+			billing: z
+				.object({
+					firstName: z.string().optional(),
+					lastName: z.string().optional(),
+					company: z.string().optional(),
+					nip: z.string().optional(),
+					address1: z.string().optional(),
+					city: z.string().optional(),
+					postcode: z.string().optional(),
+					country: z.string().optional(),
+					email: z.string().optional(),
+					phone: z.string().optional(),
+				})
 				.optional()
-				.describe("Delivery date in YYYY-MM-DD format"),
+				.describe("Billing address"),
+			shipping: z
+				.object({
+					firstName: z.string().optional(),
+					lastName: z.string().optional(),
+					company: z.string().optional(),
+					address1: z.string().optional(),
+					city: z.string().optional(),
+					postcode: z.string().optional(),
+					country: z.string().optional(),
+				})
+				.optional()
+				.describe("Shipping address"),
 		},
 		async (input) => {
 			try {
-				const kontrahent = input.contractorNip
-					? { Identyfikator: null, NIP: input.contractorNip }
-					: input.contractor
-						? {
-								Identyfikator: null,
-								NIP: input.contractor.nip || "",
-								Nazwa: input.contractor.name,
-								Ulica: input.contractor.street || "",
-								KodPocztowy: input.contractor.postalCode,
-								Miejscowosc: input.contractor.city,
-							}
-						: null;
+				const body: Record<string, unknown> = {
+					id: input.orderId,
+					status: input.status,
+					created: input.created,
+					currency: input.currency,
+					shippingTotal: input.shippingTotal,
+					productsTotalNet: input.productsTotalNet,
+					items: input.items,
+				};
+				if (input.paymentMethod) body.paymentMethod = input.paymentMethod;
+				if (input.billing) body.billing = input.billing;
+				if (input.shipping) body.shipping = input.shipping;
 
 				const result = await client.request({
 					method: "POST",
-					path: "zamowienia.json",
+					path: "hub/user/platform/CUSTOM/V1/orders/order",
 					keyName: "abonent",
-					body: {
-						Zapilesz: true,
-						TerminRealizacji: input.deliveryDate || "",
-						Uwagi: input.notes || "",
-						Pozycje: input.items.map((item) => ({
-							StawkaVat: item.vatRate === -1 ? "zw" : item.vatRate / 100,
-							Ilosc: item.quantity,
-							CenaJednostkowa: item.unitNetPrice,
-							NazwaPelna: item.name,
-							Jednostka: item.unit,
-							TypStawkiVat: item.vatRate === -1 ? "ZW" : "PRC",
-						})),
-						Kontrahent: kontrahent,
-					},
+					body,
 				});
 
 				return {

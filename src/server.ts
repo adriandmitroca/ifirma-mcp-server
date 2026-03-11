@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { IfirmaClient } from "./client/api.js";
 import type { Config } from "./config.js";
-import { registerAccountTools } from "./tools/account.js";
+import { registerAccountTools, registerVatRateTools } from "./tools/account.js";
 import { registerContractorTools } from "./tools/contractors.js";
 import { registerExpenseTools } from "./tools/expenses.js";
 import { registerHrTools } from "./tools/hr.js";
@@ -59,10 +59,22 @@ Use -1 for exempt (zw) when creating invoices.
 - oplaconeCzesciowo = partially paid
 - oplacone = paid
 
+## Expense body format
+Expense tools (create_cost_expense, create_goods_purchase_expense, create_telecom_expense) use flat VAT fields per rate bracket:
+- KwotaNetto23, KwotaVat23 (23% rate)
+- KwotaNetto08, KwotaVat08 (8% rate)
+- KwotaNetto05, KwotaVat05 (5% rate)
+- KwotaNetto00 (0% rate)
+- KwotaNettoZw (exempt)
+They do NOT use line items (Pozycje). Sales invoices use Pozycje, expenses use flat amounts.
+
 ## Important notes
 - list_invoices requires dateFrom (dataOd). Always provide a start date.
 - Contractor search returns max 20 results.
 - Invoice numbers use slashes (e.g. "A2/2/2026"). When used in payment URLs, slashes become underscores.
+- update_contractor requires ALL fields — omitted fields get deleted. Always fetch first with get_contractor.
+- Correction invoices use the original invoice ID in the URL path, not in the body.
+- EU VAT rates are queried per country code (ISO 3166-1 alpha-2). Greece uses EL.
 - KSeF = Krajowy System e-Faktur (Poland's national e-invoicing system).
 - Full API docs: https://api.ifirma.pl/
 `;
@@ -81,6 +93,7 @@ export function createServer(config: Config) {
 		registerPaymentTools(server, client);
 		registerKsefTools(server, client);
 		registerContractorTools(server, client);
+		registerVatRateTools(server, client);
 	}
 
 	if (config.keys.wydatek) {

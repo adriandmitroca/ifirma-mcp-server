@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { IfirmaClient } from "../client/api.js";
 import { formatToolError } from "../utils/errors.js";
 
-const LIST_TYPE_MAP: Record<string, string> = {
+export const LIST_TYPE_MAP: Record<string, string> = {
 	krajowa: "prz_faktura_kraj",
 	eksport: "prz_eksport_towarow",
 	wdt: "prz_dostawa_ue_towarow",
@@ -11,6 +11,86 @@ const LIST_TYPE_MAP: Record<string, string> = {
 	paragon: "prz_faktura_paragon",
 	waluta: "prz_faktura_wys_ter_kraj",
 };
+
+export function buildInvoiceBodyFn(input: {
+	issueDate: string;
+	saleDate?: string;
+	paymentDeadline: string;
+	paymentMethod: string;
+	contractorNip?: string;
+	contractor?: {
+		name: string;
+		nip?: string;
+		street?: string;
+		postalCode: string;
+		city: string;
+		country: string;
+		email?: string;
+	};
+	items: {
+		name: string;
+		unit: string;
+		quantity: number;
+		unitNetPrice: number;
+		vatRate: number;
+		pkwiu?: string;
+		gtu?: string;
+	}[];
+	notes?: string;
+	splitPayment: boolean;
+	noSignature: boolean;
+	accountNumber?: string;
+}) {
+	const body: Record<string, unknown> = {
+		Zapilesz: true,
+		LiczOd: "netto",
+		DataWystawienia: input.issueDate,
+		MiejsceWystawienia: "",
+		DataSprzedazy: input.saleDate || input.issueDate,
+		FormatDatySprzedazy: "DZN",
+		TerminPlatnosci: input.paymentDeadline,
+		SposobZaplaty: input.paymentMethod,
+		NumerKontaBankowego: input.accountNumber || "",
+		RodzajPodpisuOdbiorcy: input.noSignature ? "BPO" : "OUP",
+		PodpisFaktury: "",
+		UwagiNaFakturze: input.notes || "",
+		WidocznoscNumeruGios: false,
+		Numer: null,
+		Pozycje: input.items.map((item) => ({
+			StawkaVat: item.vatRate === -1 ? "zw" : item.vatRate / 100,
+			Ilosc: item.quantity,
+			CenaJednostkowa: item.unitNetPrice,
+			NazwaPelna: item.name,
+			Jednostka: item.unit,
+			TypStawkiVat: item.vatRate === -1 ? "ZW" : "PRC",
+			PKWiU: item.pkwiu || "",
+			GTU: item.gtu || "",
+		})),
+		Kontrahent: input.contractorNip
+			? {
+					Identyfikator: null,
+					NIP: input.contractorNip,
+					PrefiksUE: "",
+				}
+			: {
+					Identyfikator: null,
+					NIP: input.contractor?.nip || "",
+					Nazwa: input.contractor?.name || "",
+					Ulica: input.contractor?.street || "",
+					KodPocztowy: input.contractor?.postalCode || "",
+					Kraj: input.contractor?.country || "Polska",
+					Miejscowosc: input.contractor?.city || "",
+					Email: input.contractor?.email || "",
+					PrefiksUE: "",
+				},
+	};
+
+	if (input.splitPayment) {
+		body.MechanizmPodzielonejPlatnosci = true;
+	}
+
+	return body;
+}
 
 export function registerInvoiceTools(server: McpServer, client: IfirmaClient) {
 	server.tool(
@@ -153,85 +233,7 @@ export function registerInvoiceTools(server: McpServer, client: IfirmaClient) {
 		accountNumber: z.string().optional().describe("Bank account number"),
 	};
 
-	function buildInvoiceBody(input: {
-		issueDate: string;
-		saleDate?: string;
-		paymentDeadline: string;
-		paymentMethod: string;
-		contractorNip?: string;
-		contractor?: {
-			name: string;
-			nip?: string;
-			street?: string;
-			postalCode: string;
-			city: string;
-			country: string;
-			email?: string;
-		};
-		items: {
-			name: string;
-			unit: string;
-			quantity: number;
-			unitNetPrice: number;
-			vatRate: number;
-			pkwiu?: string;
-			gtu?: string;
-		}[];
-		notes?: string;
-		splitPayment: boolean;
-		noSignature: boolean;
-		accountNumber?: string;
-	}) {
-		const body: Record<string, unknown> = {
-			Zapilesz: true,
-			LiczOd: "netto",
-			DataWystawienia: input.issueDate,
-			MiejsceWystawienia: "",
-			DataSprzedazy: input.saleDate || input.issueDate,
-			FormatDatySprzedazy: "DZN",
-			TerminPlatnosci: input.paymentDeadline,
-			SposobZaplaty: input.paymentMethod,
-			NumerKontaBankowego: input.accountNumber || "",
-			RodzajPodpisuOdbiorcy: input.noSignature ? "BPO" : "OUP",
-			PodpisFaktury: "",
-			UwagiNaFakturze: input.notes || "",
-			WidocznoscNumeruGios: false,
-			Numer: null,
-			Pozycje: input.items.map((item) => ({
-				StawkaVat: item.vatRate === -1 ? "zw" : item.vatRate / 100,
-				Ilosc: item.quantity,
-				CenaJednostkowa: item.unitNetPrice,
-				NazwaPelna: item.name,
-				Jednostka: item.unit,
-				TypStawkiVat: item.vatRate === -1 ? "ZW" : "PRC",
-				PKWiU: item.pkwiu || "",
-				GTU: item.gtu || "",
-			})),
-			Kontrahent: input.contractorNip
-				? {
-						Identyfikator: null,
-						NIP: input.contractorNip,
-						PrefiksUE: "",
-					}
-				: {
-						Identyfikator: null,
-						NIP: input.contractor?.nip || "",
-						Nazwa: input.contractor?.name || "",
-						Ulica: input.contractor?.street || "",
-						KodPocztowy: input.contractor?.postalCode || "",
-						Kraj: input.contractor?.country || "Polska",
-						Miejscowosc: input.contractor?.city || "",
-						Email: input.contractor?.email || "",
-						PrefiksUE: "",
-					},
-		};
-
-		if (input.splitPayment) {
-			body.MechanizmPodzielonejPlatnosci = true;
-		}
-
-		return body;
-	}
+	const buildInvoiceBody = buildInvoiceBodyFn;
 
 	server.tool(
 		"create_domestic_invoice",
@@ -289,11 +291,33 @@ export function registerInvoiceTools(server: McpServer, client: IfirmaClient) {
 		},
 	);
 
+	const SEND_TYPE_MAP: Record<string, string> = {
+		krajowa: "fakturakraj",
+		wysylka: "fakturawysylka",
+		proforma: "fakturaproformakraj",
+		eksport: "fakturaeksporttowarow",
+		wdt: "fakturawdt",
+		eu_service: "fakturaeksportuslugue",
+		waluta: "fakturawaluta",
+	};
+
 	server.tool(
 		"send_invoice_email",
-		"Send an issued domestic invoice by email to the specified address.",
+		"Send an issued invoice by email to the specified address.",
 		{
 			id: z.number().positive().describe("Invoice ID"),
+			invoiceType: z
+				.enum([
+					"krajowa",
+					"wysylka",
+					"proforma",
+					"eksport",
+					"wdt",
+					"eu_service",
+					"waluta",
+				])
+				.default("krajowa")
+				.describe("Invoice type (determines the send endpoint)"),
 			email: z.string().describe("Recipient email address"),
 			message: z
 				.string()
@@ -306,9 +330,10 @@ export function registerInvoiceTools(server: McpServer, client: IfirmaClient) {
 					SkrzynkaEmailOdbiorcy: input.email,
 				};
 				if (input.message) body.Tekst = input.message;
+				const prefix = SEND_TYPE_MAP[input.invoiceType] || "fakturakraj";
 				const result = await client.request({
 					method: "POST",
-					path: `fakturakraj/send/${input.id}.json`,
+					path: `${prefix}/send/${input.id}.json`,
 					keyName: "faktura",
 					body,
 				});
@@ -329,24 +354,40 @@ export function registerInvoiceTools(server: McpServer, client: IfirmaClient) {
 
 	server.tool(
 		"create_correction_invoice",
-		"Create a correction invoice (korekta) for an existing domestic invoice. Requires the original invoice ID, correction reason, and corrected line items.",
+		"Create a correction invoice (korekta) for an existing domestic invoice. Requires the original invoice ID or number, correction reason, and corrected line items.",
 		{
-			originalInvoiceId: z
-				.number()
-				.positive()
-				.describe("ID of the original invoice to correct"),
+			invoiceId: z
+				.string()
+				.describe("Invoice ID or number (with / replaced by _) to correct"),
 			issueDate: z.string().describe("Issue date in YYYY-MM-DD format"),
-			correctionReason: z.string().describe("Reason for the correction"),
+			paymentDeadline: z
+				.string()
+				.optional()
+				.describe("Payment deadline in YYYY-MM-DD format"),
+			correctionReason: z
+				.enum([
+					"OBOW_RABAT",
+					"ZWR_SPRZ_TOW",
+					"ZWR_NAB_KWOT",
+					"ZWR_NAB_ZAL",
+					"PODW_CENY",
+					"POMYLKI",
+				])
+				.describe(
+					"Correction reason code: OBOW_RABAT (discount), ZWR_SPRZ_TOW (goods return), ZWR_NAB_KWOT (amount return), ZWR_NAB_ZAL (advance return), PODW_CENY (price increase), POMYLKI (errors)",
+				),
+			paymentMethod: z
+				.enum(["przelew", "gotowka", "karta", "kompensata", "barter"])
+				.default("przelew")
+				.describe("Payment method"),
 			items: z.array(invoiceItemSchema).min(1).describe("Corrected line items"),
 		},
 		async (input) => {
 			try {
-				const body = {
-					Zapilesz: true,
-					LiczOd: "netto",
+				const body: Record<string, unknown> = {
 					DataWystawienia: input.issueDate,
-					PrzyczynaKorekty: input.correctionReason,
-					IdentyfikatorFakturyKoryg: input.originalInvoiceId,
+					PowodKorekty: input.correctionReason,
+					SposobZaplaty: input.paymentMethod,
 					Pozycje: input.items.map((item) => ({
 						StawkaVat: item.vatRate === -1 ? "zw" : item.vatRate / 100,
 						Ilosc: item.quantity,
@@ -357,12 +398,14 @@ export function registerInvoiceTools(server: McpServer, client: IfirmaClient) {
 						PKWiU: item.pkwiu || "",
 						GTU: item.gtu || "",
 					})),
-					Kontrahent: null,
 				};
+				if (input.paymentDeadline) {
+					body.TerminPlatnosci = input.paymentDeadline;
+				}
 
 				const result = await client.request({
 					method: "POST",
-					path: "fakturakrajkorekta.json",
+					path: `fakturakraj/korekta/${encodeURIComponent(input.invoiceId)}.json`,
 					keyName: "faktura",
 					body,
 				});
@@ -523,11 +566,12 @@ export function registerInvoiceTools(server: McpServer, client: IfirmaClient) {
 				const body = buildInvoiceBody(input) as Record<string, unknown>;
 				body.Waluta = input.currency;
 				if (input.exchangeRate) {
-					body.KursWaluty = input.exchangeRate;
+					body.KursWalutyZDniaPoprzedzajacegoDzienWystawieniaFaktury =
+						input.exchangeRate;
 				}
 				const result = await client.request({
 					method: "POST",
-					path: "fakturakrajwaluta.json",
+					path: "fakturawaluta.json",
 					keyName: "faktura",
 					body,
 				});
@@ -559,7 +603,7 @@ export function registerInvoiceTools(server: McpServer, client: IfirmaClient) {
 				body.NumerParagonu = input.receiptNumber;
 				const result = await client.request({
 					method: "POST",
-					path: "fakturadoparagonu.json",
+					path: "fakturaparagon.json",
 					keyName: "faktura",
 					body,
 				});
@@ -651,12 +695,25 @@ export function registerInvoiceTools(server: McpServer, client: IfirmaClient) {
 		"Send an invoice via traditional mail (Poczta Polska) through iFirma's mailing service.",
 		{
 			id: z.number().positive().describe("Invoice ID"),
+			invoiceType: z
+				.enum([
+					"krajowa",
+					"wysylka",
+					"proforma",
+					"eksport",
+					"wdt",
+					"eu_service",
+					"waluta",
+				])
+				.default("krajowa")
+				.describe("Invoice type (determines the send endpoint)"),
 		},
 		async (input) => {
 			try {
+				const prefix = SEND_TYPE_MAP[input.invoiceType] || "fakturakraj";
 				const result = await client.request({
 					method: "POST",
-					path: `fakturakraj/send/${input.id}.json`,
+					path: `${prefix}/send/${input.id}.json`,
 					keyName: "faktura",
 					params: { wyslijPoczta: "true" },
 					body: {},

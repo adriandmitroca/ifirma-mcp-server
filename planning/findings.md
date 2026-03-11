@@ -35,9 +35,55 @@ The original implementation spec assumed endpoint paths that turned out to be wr
 - Body: `{ "DataWysylki": null }`
 
 ### Expenses
-- Endpoint URLs match the spec: `/zakuptowaruvat.json`, `/kosztdzialalnoscivat.json`, etc.
-- But body format uses flat VAT amount fields (KwotaNetto23, KwotaVat23) not line items
-- **TODO:** Verify our line-item-based body format actually works
+- Endpoint URLs match the spec: `/zakuptowaruvat.json`, `/kosztdzialalnoscivat.json`, `/kosztdzialalnosci.json`, `/oplatatelefon.json`
+- Body format uses flat VAT amount fields: `KwotaNetto23`, `KwotaVat23`, `KwotaNetto08`, etc. — NOT line items (Pozycje)
+- `RodzajSprzedazy`: OP (taxable), ZW (exempt), OPIZW (mixed)
+- `OznaczenieKSeF`: NUMER, OFF, BFK, DI
+- Other cost doc types: RACH, PAR, DOW_DOST, UM, DOW_OPL, NOTA_KS, POKW_ODB, BIL
+- Contractor can be matched by: `IdentyfikatorKontrahenta` → `NIPKontrahenta` → inline `Kontrahent` object
+
+### Correction Invoice
+- **NOT** `POST /fakturakrajkorekta.json` with ID in body
+- **Correct:** `POST /fakturakraj/korekta/{identyfikator_faktury}.json` — ID in URL
+- Field: `PowodKorekty` (not `PrzyczynaKorekty`), values: OBOW_RABAT, ZWR_SPRZ_TOW, ZWR_NAB_KWOT, ZWR_NAB_ZAL, PODW_CENY, POMYLKI
+
+### Receipt Invoice
+- **NOT** `fakturaparadoparagonu.json`
+- **Correct:** `fakturaparagon.json`
+
+### Foreign Currency Invoice
+- **NOT** `fakturakrajwaluta.json`
+- **Correct:** `fakturawaluta.json`
+- Exchange rate field: `KursWalutyZDniaPoprzedzajacegoDzienWystawieniaFaktury` (not `KursWaluty`)
+
+### API Limits
+- **NOT** `limit.json`
+- **Correct:** `abonent/limit.json`
+
+### EU VAT Rates
+- **NOT** `GET /stawki-vat-ue.json` (all countries, key=abonent)
+- **Correct:** `GET /slownik/stawki_vat/{kod_kraju}.json` (per country, key=faktura)
+- Country codes: ISO 3166-1 alpha-2 (Greece = EL, not GR)
+
+### Payment Registration
+- Body fields: `{ Kwota, Data, KwotaPln?, Kurs? }` — NOT `DataWplaty`/`Opis`
+
+### Invoice Email/Post Sending
+- Different URL per invoice type (not just `fakturakraj`):
+  - fakturakraj, fakturawysylka, fakturaproformakraj, fakturaeksporttowarow, fakturawdt, fakturaeksportuslugue, fakturawaluta
+
+### Contractor Update
+- API requires **ALL** contractor data — fields not sent will be DELETED
+- Always fetch first with get_contractor, then send complete data
+
+### Orders
+- **NOT** `POST /zamowienia.json` (abonent key)
+- **Correct:** `POST /hub/user/platform/CUSTOM/V1/orders/order` (e-commerce hub API)
+
+### Employee Questionnaire
+- Required fields: Email, Plec (M/K), Obywatelstwo
+- Date format: DD-MM-RRRR (not YYYY-MM-DD)
+- Address sections: AdresZameldowania, AdresZamieszkania, AdresKorespondencyjny
 
 ## API Response Format
 
