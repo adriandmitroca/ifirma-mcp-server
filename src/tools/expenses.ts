@@ -1,7 +1,33 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { IfirmaClient } from "../client/api.js";
-import { formatToolError } from "../utils/errors.js";
+import { resolveContractor } from "../utils/contractor.js";
+import { wrapToolHandler } from "../utils/errors.js";
+
+const contractorFields = {
+	contractorIdentifier: z
+		.string()
+		.optional()
+		.describe("Existing contractor identifier (from search_contractors)"),
+	contractorNip: z
+		.string()
+		.optional()
+		.describe("Contractor NIP — used if identifier not provided"),
+	contractor: z
+		.object({
+			name: z.string().describe("Contractor name"),
+			isNaturalPerson: z
+				.boolean()
+				.default(false)
+				.describe("Is a natural person"),
+			postalCode: z.string().describe("Postal code"),
+			city: z.string().describe("City"),
+		})
+		.optional()
+		.describe(
+			"New contractor details — used if neither identifier nor NIP matches",
+		),
+};
 
 const vatExpenseSchema = {
 	invoiceNumber: z.string().describe("Vendor invoice number"),
@@ -39,28 +65,7 @@ const vatExpenseSchema = {
 		.enum(["NUMER", "OFF", "BFK", "DI"])
 		.default("OFF")
 		.describe("KSeF marking: NUMER, OFF, BFK, DI"),
-	contractorIdentifier: z
-		.string()
-		.optional()
-		.describe("Existing contractor identifier (from search_contractors)"),
-	contractorNip: z
-		.string()
-		.optional()
-		.describe("Contractor NIP — used if identifier not provided"),
-	contractor: z
-		.object({
-			name: z.string().describe("Contractor name"),
-			isNaturalPerson: z
-				.boolean()
-				.default(false)
-				.describe("Is a natural person"),
-			postalCode: z.string().describe("Postal code"),
-			city: z.string().describe("City"),
-		})
-		.optional()
-		.describe(
-			"New contractor details — used if neither identifier nor NIP matches",
-		),
+	...contractorFields,
 };
 
 export function buildVatExpenseBody(input: {
@@ -99,6 +104,7 @@ export function buildVatExpenseBody(input: {
 		KwotaNettoZw: input.nettoZw,
 		RodzajSprzedazy: input.salesType,
 		OznaczenieKSeF: input.ksefMarking,
+		...resolveContractor(input),
 	};
 
 	if (input.vat23 !== undefined) body.KwotaVat23 = input.vat23;
@@ -106,19 +112,6 @@ export function buildVatExpenseBody(input: {
 	if (input.vat05 !== undefined) body.KwotaVat05 = input.vat05;
 	if (input.receiptDate) body.DataWplywu = input.receiptDate;
 	if (input.paymentDeadline) body.TerminPlatnosci = input.paymentDeadline;
-
-	if (input.contractorIdentifier) {
-		body.IdentyfikatorKontrahenta = input.contractorIdentifier;
-	} else if (input.contractorNip) {
-		body.NIPKontrahenta = input.contractorNip;
-	} else if (input.contractor) {
-		body.Kontrahent = {
-			Nazwa: input.contractor.name,
-			OsobaFizyczna: input.contractor.isNaturalPerson,
-			KodPocztowy: input.contractor.postalCode,
-			Miejscowosc: input.contractor.city,
-		};
-	}
 
 	return body;
 }
@@ -128,54 +121,30 @@ export function registerExpenseTools(server: McpServer, client: IfirmaClient) {
 		"create_cost_expense",
 		"Book a VAT invoice as a business cost (koszt działalności). Uses flat VAT amount fields per rate bracket (23%, 8%, 5%, 0%, zw).",
 		vatExpenseSchema,
-		async (input) => {
-			try {
-				const result = await client.request({
+		(input) =>
+			wrapToolHandler(() =>
+				client.request({
 					method: "POST",
 					path: "kosztdzialalnoscivat.json",
 					keyName: "wydatek",
 					body: buildVatExpenseBody(input),
-				});
-
-				return {
-					content: [
-						{ type: "text" as const, text: JSON.stringify(result, null, 2) },
-					],
-				};
-			} catch (error) {
-				return {
-					content: [{ type: "text" as const, text: formatToolError(error) }],
-					isError: true,
-				};
-			}
-		},
+				}),
+			),
 	);
 
 	server.tool(
 		"create_goods_purchase_expense",
 		"Book a VAT invoice for goods or materials purchase (zakup towaru). Uses flat VAT amount fields per rate bracket (23%, 8%, 5%, 0%, zw).",
 		vatExpenseSchema,
-		async (input) => {
-			try {
-				const result = await client.request({
+		(input) =>
+			wrapToolHandler(() =>
+				client.request({
 					method: "POST",
 					path: "zakuptowaruvat.json",
 					keyName: "wydatek",
 					body: buildVatExpenseBody(input),
-				});
-
-				return {
-					content: [
-						{ type: "text" as const, text: JSON.stringify(result, null, 2) },
-					],
-				};
-			} catch (error) {
-				return {
-					content: [{ type: "text" as const, text: formatToolError(error) }],
-					isError: true,
-				};
-			}
-		},
+				}),
+			),
 	);
 
 	server.tool(
@@ -208,64 +177,28 @@ export function registerExpenseTools(server: McpServer, client: IfirmaClient) {
 				.describe("Payment deadline (YYYY-MM-DD)"),
 			expenseName: z.string().describe("Description of the expense"),
 			amount: z.number().describe("Total amount in PLN"),
-			contractorIdentifier: z
-				.string()
-				.optional()
-				.describe("Existing contractor identifier"),
-			contractorNip: z.string().optional().describe("Contractor NIP"),
-			contractor: z
-				.object({
-					name: z.string().describe("Contractor name"),
-					postalCode: z.string().describe("Postal code"),
-					city: z.string().describe("City"),
-				})
-				.optional()
-				.describe("New contractor details"),
+			...contractorFields,
 		},
-		async (input) => {
-			try {
+		(input) =>
+			wrapToolHandler(() => {
 				const body: Record<string, unknown> = {
 					RodzajDokumentu: input.documentType,
 					NumerDokumentu: input.documentNumber,
 					DataWystawienia: input.issueDate,
 					NazwaWydatku: input.expenseName,
 					Kwota: input.amount,
+					...resolveContractor(input),
 				};
-
 				if (input.paymentDeadline) {
 					body.TerminPlatnosci = input.paymentDeadline;
 				}
-				if (input.contractorIdentifier) {
-					body.IdentyfikatorKontrahenta = input.contractorIdentifier;
-				} else if (input.contractorNip) {
-					body.NIPKontrahenta = input.contractorNip;
-				} else if (input.contractor) {
-					body.Kontrahent = {
-						Nazwa: input.contractor.name,
-						KodPocztowy: input.contractor.postalCode,
-						Miejscowosc: input.contractor.city,
-					};
-				}
-
-				const result = await client.request({
+				return client.request({
 					method: "POST",
 					path: "kosztdzialalnosci.json",
 					keyName: "wydatek",
 					body,
 				});
-
-				return {
-					content: [
-						{ type: "text" as const, text: JSON.stringify(result, null, 2) },
-					],
-				};
-			} catch (error) {
-				return {
-					content: [{ type: "text" as const, text: formatToolError(error) }],
-					isError: true,
-				};
-			}
-		},
+			}),
 	);
 
 	server.tool(
@@ -287,67 +220,24 @@ export function registerExpenseTools(server: McpServer, client: IfirmaClient) {
 				.enum(["OP", "ZW", "OPIZW"])
 				.default("OP")
 				.describe("Sales type"),
-			contractorIdentifier: z
-				.string()
-				.optional()
-				.describe("Existing contractor identifier"),
-			contractorNip: z.string().optional().describe("Telecom provider NIP"),
-			contractor: z
-				.object({
-					name: z.string().describe("Contractor name"),
-					isNaturalPerson: z
-						.boolean()
-						.default(true)
-						.describe("Is natural person"),
-					postalCode: z.string().describe("Postal code"),
-					city: z.string().describe("City"),
-				})
-				.optional()
-				.describe("New contractor details"),
+			...contractorFields,
 		},
-		async (input) => {
-			try {
-				const body: Record<string, unknown> = {
-					NumerFaktury: input.invoiceNumber,
-					DataWystawienia: input.issueDate,
-					NazwaWydatku: input.expenseName,
-					KwotaNetto23: input.netto23,
-					RodzajSprzedazy: input.salesType,
-				};
-
-				if (input.vat23 !== undefined) body.KwotaVat23 = input.vat23;
-
-				if (input.contractorIdentifier) {
-					body.IdentyfikatorKontrahenta = input.contractorIdentifier;
-				} else if (input.contractorNip) {
-					body.NIPKontrahenta = input.contractorNip;
-				} else if (input.contractor) {
-					body.Kontrahent = {
-						Nazwa: input.contractor.name,
-						OsobaFizyczna: input.contractor.isNaturalPerson,
-						KodPocztowy: input.contractor.postalCode,
-						Miejscowosc: input.contractor.city,
-					};
-				}
-
-				const result = await client.request({
+		(input) =>
+			wrapToolHandler(() =>
+				client.request({
 					method: "POST",
 					path: "oplatatelefon.json",
 					keyName: "wydatek",
-					body,
-				});
-
-				return {
-					content: [
-						{ type: "text" as const, text: JSON.stringify(result, null, 2) },
-					],
-				};
-			} catch (error) {
-				return {
-					content: [{ type: "text" as const, text: formatToolError(error) }],
-					isError: true,
-				};
-			}
-		},
+					body: {
+						NumerFaktury: input.invoiceNumber,
+						DataWystawienia: input.issueDate,
+						NazwaWydatku: input.expenseName,
+						KwotaNetto23: input.netto23,
+						...(input.vat23 !== undefined && { KwotaVat23: input.vat23 }),
+						RodzajSprzedazy: input.salesType,
+						...resolveContractor(input),
+					},
+				}),
+			),
 	);
 }

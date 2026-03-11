@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { IfirmaClient } from "../client/api.js";
-import { formatToolError } from "../utils/errors.js";
+import { wrapToolHandler } from "../utils/errors.js";
 
 export function registerContractorTools(
 	server: McpServer,
@@ -16,26 +16,14 @@ export function registerContractorTools(
 				.min(1)
 				.describe("Search query — contractor name or NIP"),
 		},
-		async (input) => {
-			try {
-				const result = await client.request({
+		(input) =>
+			wrapToolHandler(() =>
+				client.request({
 					method: "GET",
 					path: `kontrahenci/${encodeURIComponent(input.query)}.json`,
 					keyName: "faktura",
-				});
-
-				return {
-					content: [
-						{ type: "text" as const, text: JSON.stringify(result, null, 2) },
-					],
-				};
-			} catch (error) {
-				return {
-					content: [{ type: "text" as const, text: formatToolError(error) }],
-					isError: true,
-				};
-			}
-		},
+				}),
+			),
 	);
 
 	server.tool(
@@ -48,26 +36,14 @@ export function registerContractorTools(
 					"Contractor identifier (e.g. 'RADICAL AGENCY C') — from search_contractors Identyfikator field",
 				),
 		},
-		async (input) => {
-			try {
-				const result = await client.request({
+		(input) =>
+			wrapToolHandler(() =>
+				client.request({
 					method: "GET",
 					path: `kontrahenci/id/${encodeURIComponent(input.identifier)}.json`,
 					keyName: "faktura",
-				});
-
-				return {
-					content: [
-						{ type: "text" as const, text: JSON.stringify(result, null, 2) },
-					],
-				};
-			} catch (error) {
-				return {
-					content: [{ type: "text" as const, text: formatToolError(error) }],
-					isError: true,
-				};
-			}
-		},
+				}),
+			),
 	);
 
 	server.tool(
@@ -83,9 +59,9 @@ export function registerContractorTools(
 			email: z.string().optional().describe("Email address"),
 			phone: z.string().optional().describe("Phone number"),
 		},
-		async (input) => {
-			try {
-				const result = await client.request({
+		(input) =>
+			wrapToolHandler(() =>
+				client.request({
 					method: "POST",
 					path: "kontrahenci.json",
 					keyName: "faktura",
@@ -99,20 +75,8 @@ export function registerContractorTools(
 						Email: input.email || "",
 						Telefon: input.phone || "",
 					},
-				});
-
-				return {
-					content: [
-						{ type: "text" as const, text: JSON.stringify(result, null, 2) },
-					],
-				};
-			} catch (error) {
-				return {
-					content: [{ type: "text" as const, text: formatToolError(error) }],
-					isError: true,
-				};
-			}
-		},
+				}),
+			),
 	);
 
 	server.tool(
@@ -131,8 +95,8 @@ export function registerContractorTools(
 			email: z.string().optional().describe("Email address"),
 			phone: z.string().optional().describe("Phone number"),
 		},
-		async (input) => {
-			try {
+		(input) =>
+			wrapToolHandler(() => {
 				const body: Record<string, unknown> = {};
 				if (input.name !== undefined) body.Nazwa = input.name;
 				if (input.nip !== undefined) body.NIP = input.nip;
@@ -143,24 +107,12 @@ export function registerContractorTools(
 				if (input.email !== undefined) body.Email = input.email;
 				if (input.phone !== undefined) body.Telefon = input.phone;
 
-				const result = await client.request({
+				return client.request({
 					method: "PUT",
 					path: `kontrahenci/${encodeURIComponent(input.identifier)}.json`,
 					keyName: "faktura",
 					body,
 				});
-
-				return {
-					content: [
-						{ type: "text" as const, text: JSON.stringify(result, null, 2) },
-					],
-				};
-			} catch (error) {
-				return {
-					content: [{ type: "text" as const, text: formatToolError(error) }],
-					isError: true,
-				};
-			}
-		},
+			}),
 	);
 }

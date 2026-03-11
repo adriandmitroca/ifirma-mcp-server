@@ -1,7 +1,17 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { IfirmaClient } from "../client/api.js";
-import { formatToolError } from "../utils/errors.js";
+import { wrapToolHandler } from "../utils/errors.js";
+
+const addressSchema = z.object({
+	firstName: z.string().optional(),
+	lastName: z.string().optional(),
+	company: z.string().optional(),
+	address1: z.string().optional(),
+	city: z.string().optional(),
+	postcode: z.string().optional(),
+	country: z.string().optional(),
+});
 
 export function registerOrderTools(server: McpServer, client: IfirmaClient) {
 	server.tool(
@@ -32,36 +42,18 @@ export function registerOrderTools(server: McpServer, client: IfirmaClient) {
 				)
 				.min(1)
 				.describe("Order line items"),
-			billing: z
-				.object({
-					firstName: z.string().optional(),
-					lastName: z.string().optional(),
-					company: z.string().optional(),
+			billing: addressSchema
+				.extend({
 					nip: z.string().optional(),
-					address1: z.string().optional(),
-					city: z.string().optional(),
-					postcode: z.string().optional(),
-					country: z.string().optional(),
 					email: z.string().optional(),
 					phone: z.string().optional(),
 				})
 				.optional()
 				.describe("Billing address"),
-			shipping: z
-				.object({
-					firstName: z.string().optional(),
-					lastName: z.string().optional(),
-					company: z.string().optional(),
-					address1: z.string().optional(),
-					city: z.string().optional(),
-					postcode: z.string().optional(),
-					country: z.string().optional(),
-				})
-				.optional()
-				.describe("Shipping address"),
+			shipping: addressSchema.optional().describe("Shipping address"),
 		},
-		async (input) => {
-			try {
+		(input) =>
+			wrapToolHandler(() => {
 				const body: Record<string, unknown> = {
 					id: input.orderId,
 					status: input.status,
@@ -75,24 +67,12 @@ export function registerOrderTools(server: McpServer, client: IfirmaClient) {
 				if (input.billing) body.billing = input.billing;
 				if (input.shipping) body.shipping = input.shipping;
 
-				const result = await client.request({
+				return client.request({
 					method: "POST",
 					path: "hub/user/platform/CUSTOM/V1/orders/order",
 					keyName: "abonent",
 					body,
 				});
-
-				return {
-					content: [
-						{ type: "text" as const, text: JSON.stringify(result, null, 2) },
-					],
-				};
-			} catch (error) {
-				return {
-					content: [{ type: "text" as const, text: formatToolError(error) }],
-					isError: true,
-				};
-			}
-		},
+			}),
 	);
 }

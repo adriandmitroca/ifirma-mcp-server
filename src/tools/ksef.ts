@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { IfirmaClient } from "../client/api.js";
-import { formatToolError } from "../utils/errors.js";
+import { wrapToolHandler } from "../utils/errors.js";
 
 export function registerKsefTools(server: McpServer, client: IfirmaClient) {
 	server.tool(
@@ -10,26 +10,14 @@ export function registerKsefTools(server: McpServer, client: IfirmaClient) {
 		{
 			invoiceId: z.number().describe("Invoice ID to submit to KSeF"),
 		},
-		async (input) => {
-			try {
-				const result = await client.request({
+		(input) =>
+			wrapToolHandler(() =>
+				client.request({
 					method: "POST",
 					path: `fakturakraj/ksef/send/${input.invoiceId}.json`,
 					keyName: "faktura",
 					body: { DataWysylki: null },
-				});
-
-				return {
-					content: [
-						{ type: "text" as const, text: JSON.stringify(result, null, 2) },
-					],
-				};
-			} catch (error) {
-				return {
-					content: [{ type: "text" as const, text: formatToolError(error) }],
-					isError: true,
-				};
-			}
-		},
+				}),
+			),
 	);
 }

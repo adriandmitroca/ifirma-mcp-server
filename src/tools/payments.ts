@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { IfirmaClient } from "../client/api.js";
-import { formatToolError } from "../utils/errors.js";
+import { wrapToolHandler } from "../utils/errors.js";
 
 export function registerPaymentTools(server: McpServer, client: IfirmaClient) {
 	server.tool(
@@ -44,33 +44,19 @@ export function registerPaymentTools(server: McpServer, client: IfirmaClient) {
 					"Exchange rate — required when paying in the invoice's foreign currency",
 				),
 		},
-		async (input) => {
-			try {
+		(input) =>
+			wrapToolHandler(() => {
 				const numer = input.invoiceNumber.replace(/\//g, "_");
-				const body: Record<string, unknown> = {
-					Kwota: input.amount,
-				};
+				const body: Record<string, unknown> = { Kwota: input.amount };
 				if (input.paymentDate) body.Data = input.paymentDate;
 				if (input.amountPln !== undefined) body.KwotaPln = input.amountPln;
 				if (input.exchangeRate !== undefined) body.Kurs = input.exchangeRate;
-				const result = await client.request({
+				return client.request({
 					method: "POST",
 					path: `faktury/wplaty/${input.invoiceType}/${numer}.json`,
 					keyName: "faktura",
 					body,
 				});
-
-				return {
-					content: [
-						{ type: "text" as const, text: JSON.stringify(result, null, 2) },
-					],
-				};
-			} catch (error) {
-				return {
-					content: [{ type: "text" as const, text: formatToolError(error) }],
-					isError: true,
-				};
-			}
-		},
+			}),
 	);
 }

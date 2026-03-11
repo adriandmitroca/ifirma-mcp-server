@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LIST_TYPE_MAP, buildInvoiceBodyFn } from "../src/tools/invoices.js";
+import { LIST_TYPE_MAP, buildInvoiceBody } from "../src/tools/invoices.js";
 
 describe("LIST_TYPE_MAP", () => {
 	it("maps krajowa to prz_faktura_kraj", () => {
@@ -15,7 +15,7 @@ describe("LIST_TYPE_MAP", () => {
 	});
 });
 
-describe("buildInvoiceBodyFn", () => {
+describe("buildInvoiceBody", () => {
 	const baseInput = {
 		issueDate: "2026-03-01",
 		paymentDeadline: "2026-03-15",
@@ -35,7 +35,7 @@ describe("buildInvoiceBodyFn", () => {
 	};
 
 	it("produces correct top-level fields", () => {
-		const body = buildInvoiceBodyFn(baseInput);
+		const body = buildInvoiceBody(baseInput);
 		expect(body.Zapilesz).toBe(true);
 		expect(body.LiczOd).toBe("netto");
 		expect(body.DataWystawienia).toBe("2026-03-01");
@@ -46,24 +46,24 @@ describe("buildInvoiceBodyFn", () => {
 	});
 
 	it("defaults DataSprzedazy to issueDate when saleDate not provided", () => {
-		const body = buildInvoiceBodyFn(baseInput);
+		const body = buildInvoiceBody(baseInput);
 		expect(body.DataSprzedazy).toBe("2026-03-01");
 	});
 
 	it("uses saleDate when provided", () => {
-		const body = buildInvoiceBodyFn({ ...baseInput, saleDate: "2026-02-28" });
+		const body = buildInvoiceBody({ ...baseInput, saleDate: "2026-02-28" });
 		expect(body.DataSprzedazy).toBe("2026-02-28");
 	});
 
 	it("maps VAT rate from percentage to decimal", () => {
-		const body = buildInvoiceBodyFn(baseInput);
+		const body = buildInvoiceBody(baseInput);
 		const pozycje = body.Pozycje as Array<Record<string, unknown>>;
 		expect(pozycje[0].StawkaVat).toBe(0.23);
 		expect(pozycje[0].TypStawkiVat).toBe("PRC");
 	});
 
 	it("maps VAT rate -1 to exempt (zw)", () => {
-		const body = buildInvoiceBodyFn({
+		const body = buildInvoiceBody({
 			...baseInput,
 			items: [{ ...baseInput.items[0], vatRate: -1 }],
 		});
@@ -73,7 +73,7 @@ describe("buildInvoiceBodyFn", () => {
 	});
 
 	it("maps item fields to Polish names", () => {
-		const body = buildInvoiceBodyFn(baseInput);
+		const body = buildInvoiceBody(baseInput);
 		const pozycje = body.Pozycje as Array<Record<string, unknown>>;
 		expect(pozycje[0].NazwaPelna).toBe("Consulting");
 		expect(pozycje[0].Jednostka).toBe("h");
@@ -82,7 +82,7 @@ describe("buildInvoiceBodyFn", () => {
 	});
 
 	it("uses NIP-only contractor when contractorNip provided", () => {
-		const body = buildInvoiceBodyFn(baseInput);
+		const body = buildInvoiceBody(baseInput);
 		const kontrahent = body.Kontrahent as Record<string, unknown>;
 		expect(kontrahent.NIP).toBe("1234567890");
 		expect(kontrahent.Identyfikator).toBeNull();
@@ -91,7 +91,7 @@ describe("buildInvoiceBodyFn", () => {
 	});
 
 	it("uses inline contractor when contractorNip not provided", () => {
-		const body = buildInvoiceBodyFn({
+		const body = buildInvoiceBody({
 			...baseInput,
 			contractorNip: undefined,
 			contractor: {
@@ -110,27 +110,27 @@ describe("buildInvoiceBodyFn", () => {
 	});
 
 	it("sets BPO when noSignature is true", () => {
-		const body = buildInvoiceBodyFn({ ...baseInput, noSignature: true });
+		const body = buildInvoiceBody({ ...baseInput, noSignature: true });
 		expect(body.RodzajPodpisuOdbiorcy).toBe("BPO");
 	});
 
 	it("sets OUP when noSignature is false", () => {
-		const body = buildInvoiceBodyFn(baseInput);
+		const body = buildInvoiceBody(baseInput);
 		expect(body.RodzajPodpisuOdbiorcy).toBe("OUP");
 	});
 
 	it("adds split payment flag when enabled", () => {
-		const body = buildInvoiceBodyFn({ ...baseInput, splitPayment: true });
+		const body = buildInvoiceBody({ ...baseInput, splitPayment: true });
 		expect(body.MechanizmPodzielonejPlatnosci).toBe(true);
 	});
 
 	it("omits split payment flag when disabled", () => {
-		const body = buildInvoiceBodyFn(baseInput);
+		const body = buildInvoiceBody(baseInput);
 		expect(body.MechanizmPodzielonejPlatnosci).toBeUndefined();
 	});
 
 	it("includes PKWiU and GTU when provided", () => {
-		const body = buildInvoiceBodyFn({
+		const body = buildInvoiceBody({
 			...baseInput,
 			items: [{ ...baseInput.items[0], pkwiu: "62.01", gtu: "12" }],
 		});

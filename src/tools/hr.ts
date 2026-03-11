@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { IfirmaClient } from "../client/api.js";
-import { formatToolError } from "../utils/errors.js";
+import { wrapToolHandler } from "../utils/errors.js";
 
 export function registerHrTools(server: McpServer, client: IfirmaClient) {
 	server.tool(
@@ -57,8 +57,8 @@ export function registerHrTools(server: McpServer, client: IfirmaClient) {
 				.optional()
 				.describe("Registration address (adres zameldowania)"),
 		},
-		async (input) => {
-			try {
+		(input) =>
+			wrapToolHandler(() => {
 				const body: Record<string, unknown> = {
 					Email: input.email,
 					Imie: input.firstName,
@@ -95,27 +95,12 @@ export function registerHrTools(server: McpServer, client: IfirmaClient) {
 					};
 				}
 
-				const result = await client.request({
+				return client.request({
 					method: "POST",
 					path: "kwestionariusz.json",
 					keyName: "abonent",
 					body,
 				});
-
-				return {
-					content: [
-						{
-							type: "text" as const,
-							text: JSON.stringify(result, null, 2),
-						},
-					],
-				};
-			} catch (error) {
-				return {
-					content: [{ type: "text" as const, text: formatToolError(error) }],
-					isError: true,
-				};
-			}
-		},
+			}),
 	);
 }
