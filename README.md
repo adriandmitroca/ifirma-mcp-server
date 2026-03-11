@@ -19,6 +19,28 @@ claude mcp add ifirma \
   -- npx -y ifirma-mcp-server
 ```
 
+### Claude Desktop
+
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
+
+```json
+{
+  "mcpServers": {
+    "ifirma": {
+      "command": "npx",
+      "args": ["-y", "ifirma-mcp-server"],
+      "env": {
+        "IFIRMA_USERNAME": "your@email.pl",
+        "IFIRMA_API_KEY_INVOICE": "hex_key_faktura",
+        "IFIRMA_API_KEY_EXPENSE": "hex_key_wydatek",
+        "IFIRMA_API_KEY_ACCOUNT": "hex_key_abonent",
+        "IFIRMA_API_KEY_RECEIPT": "hex_key_rachunek"
+      }
+    }
+  }
+}
+```
+
 ### Other MCP clients
 
 Run via `npx -y ifirma-mcp-server` with the environment variables below.
