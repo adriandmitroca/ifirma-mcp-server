@@ -1,6 +1,6 @@
 {
 	"name": "ifirma-mcp-server",
-	"version": "0.1.0",
+	"version": "0.0.0",
 	"description": "MCP server for the iFirma.pl Polish accounting API",
 	"keywords": [
 		"mcp",
@@ -13,7 +13,11 @@
 		"jdg",
 		"ksef"
 	],
-	"private": true,
+	"author": "Adrian Dmitroca",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/adriandmitroca/ifirma-mcp-server.git"
+	},
 	"license": "MIT",
 	"type": "module",
 	"bin": {
@@ -21,7 +25,9 @@
 	},
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
-	"files": ["dist"],
+	"files": [
+		"dist"
+	],
 	"engines": {
 		"node": ">=18.0.0"
 	},
@@ -38,10 +44,30 @@
 	"dependencies": {
 		"@modelcontextprotocol/sdk": "^1.12.1"
 	},
+	"release": {
+		"branches": ["main"],
+		"plugins": [
+			"@semantic-release/commit-analyzer",
+			"@semantic-release/release-notes-generator",
+			"@semantic-release/changelog",
+			"@semantic-release/npm",
+			[
+				"@semantic-release/git",
+				{
+					"assets": ["package.json", "CHANGELOG.md"],
+					"message": "chore(release): ${nextRelease.version}"
+				}
+			],
+			"@semantic-release/github"
+		]
+	},
 	"devDependencies": {
 		"@biomejs/biome": "^1.9.4",
+		"@semantic-release/changelog": "^6.0.3",
+		"@semantic-release/git": "^10.0.1",
 		"@types/node": "^20.17.57",
 		"dotenv-cli": "^11.0.0",
+		"semantic-release": "^25.0.3",
 		"tsup": "^8.5.0",
 		"tsx": "^4.19.4",
 		"typescript": "^5.8.3",
