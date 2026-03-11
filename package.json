@@ -1,6 +1,6 @@
 {
 	"name": "ifirma-mcp-server",
-	"version": "0.0.0",
+	"version": "1.0.0",
 	"description": "MCP server for the iFirma.pl Polish accounting API",
 	"keywords": [
 		"mcp",
@@ -25,7 +25,9 @@
 	},
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
-	"files": ["dist"],
+	"files": [
+		"dist"
+	],
 	"engines": {
 		"node": ">=18.0.0"
 	},
@@ -43,7 +45,9 @@
 		"@modelcontextprotocol/sdk": "^1.12.1"
 	},
 	"release": {
-		"branches": ["main"],
+		"branches": [
+			"main"
+		],
 		"plugins": [
 			"@semantic-release/commit-analyzer",
 			"@semantic-release/release-notes-generator",
@@ -52,7 +56,10 @@
 			[
 				"@semantic-release/git",
 				{
-					"assets": ["package.json", "CHANGELOG.md"],
+					"assets": [
+						"package.json",
+						"CHANGELOG.md"
+					],
 					"message": "chore(release): ${nextRelease.version}"
 				}
 			],
