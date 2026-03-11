@@ -1,0 +1,12 @@
+{
+	"Identyfikator": 12345,
+	"NumerPelny": "FV 1/03/2026",
+	"DataWystawienia": "2026-03-01",
+	"DataSprzedazy": "2026-03-01",
+	"NazwaKontrahenta": "Acme sp. z o.o.",
+	"NIPKontrahenta": "1234567890",
+	"BruttoSuma": 12300,
+	"NettoSuma": 10000,
+	"StatusPlatnosci": "nieoplacona",
+	"TypFaktury": "krajowa"
+}
