@@ -25,9 +25,7 @@
 	},
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
-	"files": [
-		"dist"
-	],
+	"files": ["dist"],
 	"engines": {
 		"node": ">=18.0.0"
 	},
@@ -45,21 +43,17 @@
 		"@modelcontextprotocol/sdk": "^1.12.1"
 	},
 	"release": {
-		"branches": [
-			"main"
-		],
+		"branches": ["main"],
 		"plugins": [
 			"@semantic-release/commit-analyzer",
 			"@semantic-release/release-notes-generator",
 			"@semantic-release/changelog",
 			"@semantic-release/npm",
+			["@semantic-release/exec", { "prepareCmd": "npm run lint:fix" }],
 			[
 				"@semantic-release/git",
 				{
-					"assets": [
-						"package.json",
-						"CHANGELOG.md"
-					],
+					"assets": ["package.json", "CHANGELOG.md"],
 					"message": "chore(release): ${nextRelease.version}"
 				}
 			],
@@ -69,6 +63,7 @@
 	"devDependencies": {
 		"@biomejs/biome": "^1.9.4",
 		"@semantic-release/changelog": "^6.0.3",
+		"@semantic-release/exec": "^7.1.0",
 		"@semantic-release/git": "^10.0.1",
 		"@types/node": "^20.17.57",
 		"dotenv-cli": "^11.0.0",
